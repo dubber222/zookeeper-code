@@ -79,6 +79,7 @@ public class QuorumPeerMain {
     public static void main(String[] args) {
         QuorumPeerMain main = new QuorumPeerMain();
         try {
+            //初始化
             main.initializeAndRun(args);
         } catch (IllegalArgumentException e) {
             LOG.error("Invalid arguments, exiting abnormally", e);
@@ -118,7 +119,7 @@ public class QuorumPeerMain {
                 .getDataDir(), config.getDataLogDir(), config
                 .getSnapRetainCount(), config.getPurgeInterval());
         purgeMgr.start();
-
+        // 判断是 standalone 模式还是集群模式
         if (args.length == 1 && config.isDistributed()) {
             runFromConfig(config);
         } else {
@@ -142,7 +143,7 @@ public class QuorumPeerMain {
       try {
           ServerCnxnFactory cnxnFactory = null;
           ServerCnxnFactory secureCnxnFactory = null;
-
+          // 为客户端提供读写的端口，即2181这个端口
           if (config.getClientPortAddress() != null) {
               cnxnFactory = ServerCnxnFactory.createFactory();
               cnxnFactory.configure(config.getClientPortAddress(),
@@ -157,6 +158,7 @@ public class QuorumPeerMain {
                       true);
           }
 
+          // zk的逻辑主线程，负责投票，选举。
           quorumPeer = getQuorumPeer();
           quorumPeer.setTxnFactory(new FileTxnSnapLog(
                       config.getDataLogDir(),
@@ -196,7 +198,7 @@ public class QuorumPeerMain {
           }
           quorumPeer.setQuorumCnxnThreadsSize(config.quorumCnxnThreadsSize);
           quorumPeer.initialize();
-          
+          // 启动主线程
           quorumPeer.start();
           quorumPeer.join();
       } catch (InterruptedException e) {

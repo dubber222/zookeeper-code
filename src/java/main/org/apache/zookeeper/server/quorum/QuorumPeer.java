@@ -849,6 +849,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
         if (!getView().containsKey(myid)) {
             throw new RuntimeException("My id " + myid + " not in the peer list");
          }
+        // 恢复DB, 从本地文件中恢复数据, 以及获取最新的 ZXID
         loadDataBase();
         startServerCnxnFactory();
         try {
@@ -857,18 +858,23 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
             LOG.warn("Problem starting AdminServer", e);
             System.out.println(e);
         }
+        // 选举初始化
         startLeaderElection();
+        // 开始选举
         super.start();
     }
 
     private void loadDataBase() {
         try {
+            //从本地文件恢复DB
             zkDb.loadDataBase();
 
             // load the epochs
+            // 从最新的ZXID中恢复 epoch 变量。 高32位是 epoch ,低32位唯一表示ZXID
             long lastProcessedZxid = zkDb.getDataTree().lastProcessedZxid;
             long epochOfZxid = ZxidUtils.getEpochFromZxid(lastProcessedZxid);
             try {
+                // 从文件中读取当前的 epoch
                 currentEpoch = readLongFromFile(CURRENT_EPOCH_FILENAME);
             } catch(FileNotFoundException e) {
             	// pick a reasonable epoch number
@@ -912,6 +918,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
     }
     synchronized public void startLeaderElection() {
         try {
+            // 如果当前节点为 LOOKING ，则投票给自己。
             if (getPeerState() == ServerState.LOOKING) {
                 currentVote = new Vote(myid, getLastLoggedZxid(), getCurrentEpoch());
             }
@@ -920,7 +927,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
             re.setStackTrace(e.getStackTrace());
             throw re;
         }
-
+        // 根据 electionType 获取选举算法， 默认为 3 ；即为 FastLeaderElection。
         this.electionAlg = createElectionAlgorithm(electionType);
     }
 
@@ -1027,10 +1034,13 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
             le = new AuthFastLeaderElection(this, true);
             break;
         case 3:
+            //Leader 选举IO负责类
             qcm = createCnxnManager();
             QuorumCnxManager.Listener listener = qcm.listener;
             if(listener != null){
+                // 启动已绑定端口的选举线程，等待集群中其他机器连接
                 listener.start();
+                // 基于 TCP 的选举算法
                 FastLeaderElection fle = new FastLeaderElection(this, qcm);
                 fle.start();
                 le = fle;
@@ -1080,6 +1090,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
 
         LOG.debug("Starting quorum peer");
         try {
+            // 此处通过 JMX 监控一些属性。
             jmxQuorumBean = new QuorumBean(this);
             MBeanRegistry.getInstance().register(jmxQuorumBean, null);
             for(QuorumServer s: getView().values()){
@@ -1112,7 +1123,9 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
              * Main loop
              */
             while (running) {
+                // 判断当前节点的状态
                 switch (getPeerState()) {
+                    //如果是 LOOKING , 则进入选举流程。
                 case LOOKING:
                     LOG.info("LOOKING");
 
@@ -1151,6 +1164,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                                 shuttingDownLE = false;
                                 startLeaderElection();
                             }
+                            // 策略模式，使用已定的算法来进行 Leader 选举。
                             setCurrentVote(makeLEStrategy().lookForLeader());
                         } catch (Exception e) {
                             LOG.warn("Unexpected exception", e);
