@@ -651,8 +651,10 @@ public class DataTree {
     public Stat statNode(String path, Watcher watcher)
             throws KeeperException.NoNodeException {
         Stat stat = new Stat();
+        // 获得节点数据。
         DataNode n = nodes.get(path);
         if (watcher != null) {
+            // 路径和 watcher 进行绑定。
             dataWatches.addWatch(path, watcher);
         }
         if (n == null) {

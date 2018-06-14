@@ -230,6 +230,7 @@ public class ClientCnxnSocketNetty extends ClientCnxnSocket {
                     return;
                 }
             } else {
+                // 判断 outgoingQueue 是否有带发送的数据包，不存在则返回
                 if ((head = outgoingQueue.poll(waitTimeOut, TimeUnit.MILLISECONDS)) == null) {
                     return;
                 }
@@ -241,6 +242,7 @@ public class ClientCnxnSocketNetty extends ClientCnxnSocket {
                 return;
             }
             // channel disconnection happened
+            // 异常流程， 如果 channel 连接关闭了， 数据包重新添加到 outgoingQueue
             if (disconnected.get()) {
                 addBack(head);
                 throw new EndOfStreamException("channel for sessionid 0x"
@@ -248,6 +250,7 @@ public class ClientCnxnSocketNetty extends ClientCnxnSocket {
                         + " is lost");
             }
             if (head != null) {
+                // 如果当前存在待发送的数据包，调用 doWrite 方法发送。
                 doWrite(pendingQueue, head, cnxn);
             }
         } finally {
@@ -264,9 +267,11 @@ public class ClientCnxnSocketNetty extends ClientCnxnSocket {
     private void sendPkt(Packet p) {
         // Assuming the packet will be sent out successfully. Because if it fails,
         // the channel will close and clean up queues.
+        // 序列化为 ByteBuffer
         p.createBB();
         updateLastSend();
         sentCount++;
+        // 通过NIO channel 发送字节缓冲到服务端。
         channel.write(ChannelBuffers.wrappedBuffer(p.bb));
     }
 
@@ -285,11 +290,13 @@ public class ClientCnxnSocketNetty extends ClientCnxnSocket {
                 if ((p.requestHeader != null) &&
                         (p.requestHeader.getType() != ZooDefs.OpCode.ping) &&
                         (p.requestHeader.getType() != ZooDefs.OpCode.auth)) {
+                    // 设置 Xid ,用来区分请求类型。
                     p.requestHeader.setXid(cnxn.getXid());
                     synchronized (pendingQueue) {
                         pendingQueue.add(p);
                     }
                 }
+                // 发送数据包
                 sendPkt(p);
             }
             if (outgoingQueue.isEmpty()) {
@@ -405,6 +412,7 @@ public class ClientCnxnSocketNetty extends ClientCnxnSocket {
             onClosing();
         }
 
+        // 接收服务端处理返回数据
         @Override
         public void messageReceived(ChannelHandlerContext ctx,
                                     MessageEvent e) throws Exception {
@@ -431,6 +439,8 @@ public class ClientCnxnSocketNetty extends ClientCnxnSocket {
                         initialized = true;
                         updateLastHeard();
                     } else {
+
+                        // 触发 SendThread readResponse 方法
                         sendThread.readResponse(incomingBuffer);
                         lenBuffer.clear();
                         incomingBuffer = lenBuffer;

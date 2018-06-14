@@ -555,6 +555,7 @@ public class ZooKeeper implements AutoCloseable {
          */
         public void register(int rc) {
             if (shouldAddWatch(rc)) {
+                // 通过子类实现取得 ZKWatcherManager 中的 existsWatcher
                 Map<String, Set<Watcher>> watches = getWatches(rc);
                 synchronized(watches) {
                     Set<Watcher> watchers = watches.get(clientPath);
@@ -871,11 +872,13 @@ public class ZooKeeper implements AutoCloseable {
         }
         this.clientConfig = clientConfig;
         watchManager = defaultWatchManager();
+        // 将 watcher 设置到 ZKWatcherManager 中
         watchManager.defaultWatcher = watcher;
         ConnectStringParser connectStringParser = new ConnectStringParser(
                 connectString);
         hostProvider = aHostProvider;
 
+        // 初始化 ClientCnxn , 并调用其 start() 方法。
         cnxn = new ClientCnxn(connectStringParser.getChrootPath(),
                 hostProvider, sessionTimeout, this, watchManager,
                 getClientCnxnSocket(), canBeReadOnly);
@@ -1908,17 +1911,23 @@ public class ZooKeeper implements AutoCloseable {
         // the watch contains the un-chroot path
         WatchRegistration wcb = null;
         if (watcher != null) {
+            // 构建ExistsWatchRegistration
             wcb = new ExistsWatchRegistration(watcher, clientPath);
         }
 
         final String serverPath = prependChroot(clientPath);
 
         RequestHeader h = new RequestHeader();
+        // 设置操作类型为 exists
         h.setType(ZooDefs.OpCode.exists);
+        // 构造 ExistsRequest
         ExistsRequest request = new ExistsRequest();
         request.setPath(serverPath);
+        // 注册监听
         request.setWatch(watcher != null);
+        // 设置服务端相应接收类
         SetDataResponse response = new SetDataResponse();
+        // 将封装的 RequestHeader、ExistsRequest、SetDataResponse和 ExistsWatchRegistration 添加到发送队列。
         ReplyHeader r = cnxn.submitRequest(h, request, response, wcb);
         if (r.getErr() != 0) {
             if (r.getErr() == KeeperException.Code.NONODE.intValue()) {
@@ -1928,6 +1937,7 @@ public class ZooKeeper implements AutoCloseable {
                     clientPath);
         }
 
+        // 返回 exist 得到的结果 Stat
         return response.getStat().getCzxid() == -1 ? null : response.getStat();
     }
 

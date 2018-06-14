@@ -56,7 +56,9 @@ class WatchManager {
 
     synchronized void addWatch(String path, Watcher watcher) {
         Set<Watcher> list = watchTable.get(path);
+        // 判断当前path 是否有对应的 watcher。
         if (list == null) {
+            // 不存在则主动添加
             // don't waste memory if there are few watches on a node
             // rehash when the 4th entry is added, doubling size thereafter
             // seems like a good compromise
@@ -69,8 +71,10 @@ class WatchManager {
         if (paths == null) {
             // cnxns typically have many watches, so use default cap here
             paths = new HashSet<String>();
+            // 设置watcher 到节点路径的映射
             watch2Paths.put(watcher, paths);
         }
+        // 将路劲添加到paths集合
         paths.add(path);
     }
 
@@ -95,10 +99,12 @@ class WatchManager {
     }
 
     Set<Watcher> triggerWatch(String path, EventType type, Set<Watcher> supress) {
+        // 根据事件类型，连接状态和节点路径创建WathedEvent
         WatchedEvent e = new WatchedEvent(type,
                 KeeperState.SyncConnected, path);
         Set<Watcher> watchers;
         synchronized (this) {
+            // 通过路径获取 watchers 集合
             watchers = watchTable.remove(path);
             if (watchers == null || watchers.isEmpty()) {
                 if (LOG.isTraceEnabled()) {
@@ -115,10 +121,12 @@ class WatchManager {
                 }
             }
         }
+        // 轮训 watcher 集合
         for (Watcher w : watchers) {
             if (supress != null && supress.contains(w)) {
                 continue;
             }
+            // 重点来了， 做什么的呢？
             w.process(e);
         }
         return watchers;

@@ -105,6 +105,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
             int randRoll = r.nextInt(snapCount/2);
             while (true) {
                 Request si = null;
+                // 从阻塞队列中获取请求
                 if (toFlush.isEmpty()) {
                     si = queuedRequests.take();
                 } else {
@@ -119,6 +120,8 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
                 }
                 if (si != null) {
                     // track the number of records written to the log
+
+                    // 触发快照操作，启动一个处理快照的线程
                     if (zks.getZKDatabase().append(si)) {
                         logCount++;
                         if (logCount > (snapCount / 2 + randRoll)) {
@@ -148,6 +151,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
                         // flushes (writes), then just pass this to the next
                         // processor
                         if (nextProcessor != null) {
+                            // 继续调用下一个处理器来处理请求
                             nextProcessor.processRequest(si);
                             if (nextProcessor instanceof Flushable) {
                                 ((Flushable)nextProcessor).flush();

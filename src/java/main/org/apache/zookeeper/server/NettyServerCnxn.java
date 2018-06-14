@@ -323,6 +323,7 @@ public class NettyServerCnxn extends ServerCnxn {
     public void receiveMessage(ChannelBuffer message) {
         try {
             while(message.readable() && !throttled) {
+                // bytebuffer 不为空
                 if (bb != null) {
                     if (LOG.isTraceEnabled()) {
                         LOG.trace("message readable " + message.readableBytes()
@@ -334,11 +335,12 @@ public class NettyServerCnxn extends ServerCnxn {
                                 + ChannelBuffers.hexDump(
                                         ChannelBuffers.copiedBuffer(dat)));
                     }
-
+                    // bb空间大于 message中可读字节大小。
                     if (bb.remaining() > message.readableBytes()) {
                         int newLimit = bb.position() + message.readableBytes();
                         bb.limit(newLimit);
                     }
+                    // 将message 写入到 bb 中
                     message.readBytes(bb);
                     bb.limit(bb.capacity());
 
@@ -355,7 +357,7 @@ public class NettyServerCnxn extends ServerCnxn {
                                         ChannelBuffers.copiedBuffer(dat)));
                     }
                     if (bb.remaining() == 0) {
-                        packetReceived();
+                        packetReceived(); // 统计接收信息
                         bb.flip();
 
                         ZooKeeperServer zks = this.zkServer;
@@ -363,6 +365,7 @@ public class NettyServerCnxn extends ServerCnxn {
                             throw new IOException("ZK down");
                         }
                         if (initialized) {
+                            // 处理传过来的数据包
                             zks.processPacket(this, bb);
 
                             if (zks.shouldThrottle(outstandingCount.incrementAndGet())) {
@@ -377,6 +380,7 @@ public class NettyServerCnxn extends ServerCnxn {
                         bb = null;
                     }
                 } else {
+                    // 如果 bb 为空，分配空间
                     if (LOG.isTraceEnabled()) {
                         LOG.trace("message readable "
                                 + message.readableBytes()

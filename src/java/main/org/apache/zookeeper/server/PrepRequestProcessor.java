@@ -131,6 +131,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
     public void run() {
         try {
             while (true) {
+                // 从队列中拿到请求进行处理
                 Request request = submittedRequests.take();
                 long traceMask = ZooTrace.CLIENT_REQUEST_TRACE_MASK;
                 if (request.type == OpCode.ping) {
@@ -142,6 +143,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 if (Request.requestOfDeath == request) {
                     break;
                 }
+                // 预处理
                 pRequest(request);
             }
         } catch (RequestProcessorException e) {

@@ -791,6 +791,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     public void submitRequest(Request si) {
+        // 如果firstProcessor为null, 等待 request processor chain 的建立
         if (firstProcessor == null) {
             synchronized (this) {
                 try {
@@ -811,6 +812,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         }
         try {
             touch(si.cnxn);
+            // 判断 request 的有效性
             boolean validpacket = Request.isValid(si.type);
             if (validpacket) {
                 firstProcessor.processRequest(si);
@@ -1074,11 +1076,13 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         InputStream bais = new ByteBufferInputStream(incomingBuffer);
         BinaryInputArchive bia = BinaryInputArchive.getArchive(bais);
         RequestHeader h = new RequestHeader();
+        // 反序列化客户端 header 头信息。
         h.deserialize(bia, "header");
         // Through the magic of byte buffers, txn will not be
         // pointing
         // to the start of the txn
         incomingBuffer = incomingBuffer.slice();
+        // 判断当前操作类型， auth 授权操作
         if (h.getType() == OpCode.auth) {
             LOG.info("got auth packet " + cnxn.getRemoteSocketAddress());
             AuthPacket authPacket = new AuthPacket();
@@ -1120,6 +1124,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             }
             return;
         } else {
+            // 如果不是auth 授权操作，判断是不是 sasl 操作
             if (h.getType() == OpCode.sasl) {
                 Record rsp = processSasl(incomingBuffer,cnxn);
                 ReplyHeader rh = new ReplyHeader(h.getXid(), 0, KeeperException.Code.OK.intValue());
@@ -1127,12 +1132,16 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 return;
             }
             else {
+                // 最终进入这个代码块进行处理
+                // 封装请求对象
                 Request si = new Request(cnxn, cnxn.getSessionId(), h.getXid(),
                   h.getType(), incomingBuffer, cnxn.getAuthInfo());
                 si.setOwner(ServerCnxn.me);
                 // Always treat packet from the client as a possible
                 // local request.
                 setLocalSessionFlag(si);
+
+                // 提交请求对象
                 submitRequest(si);
             }
         }

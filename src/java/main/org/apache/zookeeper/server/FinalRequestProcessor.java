@@ -295,18 +295,25 @@ public class FinalRequestProcessor implements RequestProcessor {
                 err = Code.get(rc.err);
                 break;
             }
+            // 找到操作类型 为 exists 的处理代码
             case OpCode.exists: {
                 lastOp = "EXIS";
                 // TODO we need to figure out the security requirement for this!
                 ExistsRequest existsRequest = new ExistsRequest();
+                // 反序列化。
                 ByteBufferInputStream.byteBuffer2Record(request.request,
                         existsRequest);
+                // 得到请求路径
                 String path = existsRequest.getPath();
                 if (path.indexOf('\0') != -1) {
                     throw new KeeperException.BadArgumentsException();
                 }
+                // 关键代码
+                // getWatch存在，则传递 ServerCnxn；
+                // 对于 exists 事件，需要监听 data 变化事件，添加watcher
                 Stat stat = zks.getZKDatabase().statNode(path, existsRequest
                         .getWatch() ? cnxn : null);
+                // 在服务端内存数据库中根据路径得到结果进行组装，设置为 ExistsResponse。
                 rsp = new ExistsResponse(stat);
                 break;
             }
